@@ -1,6 +1,4 @@
 
-const log = console.log
-
 class AppController {
 	socket = null
 	io = null
@@ -30,11 +28,21 @@ class AppController {
 		}
 		this.userMap.set(currentClient.id, currentClient)
 		this.socket.emit('connection-established', this.socket.id)
-		log(`Established connection with ${this.socket.username} (${this.socket.id})`)
+		this.log(`Established connection with ${this.socket.username} (${this.socket.id})`)
+	}
+
+	log (...messages) {
+		const payload = {
+			message: messages.join(' '),
+			clients: [...this.userMap.values()],
+			games: [...this.gameMap.values()]
+		}
+		this.io.emit('log', payload)
+		console.log(...messages)
 	}
 
 	resetClients (gameId, reason) {
-		log(`Sending "reset" signal to all clients in ${gameId}`)
+		this.log(`Sending "reset" signal to all clients in ${gameId}`)
 		this.io.to(gameId).emit('reset', reason)
 	}
 
@@ -43,6 +51,7 @@ class AppController {
 		user.username = newUsername
 		this.userMap.set(this.socket.id, user)
 		this.socket.emit('client-rename-resp', true)
+		this.log(`Client name changed to ${newUsername} (${user.id})`)
 	}
 
 	createGame () {
@@ -59,7 +68,7 @@ class AppController {
 		this.socket.join(gameId)
 		this.socket.emit('game-create-resp', gameId)
 		this.io.to(gameId).emit('game-player-added', { id: client.id, name: client.username })
-		log(`New game created by ${client.username}:  ${gameId}`)
+		this.log(`New game created by ${client.username}:  ${gameId}`)
 	}
 
 	joinGame (gameId) {
@@ -68,14 +77,17 @@ class AppController {
 		const game = this.gameMap.get(gameId)
 		if (!game) {
 			const resp = { success: false, message: 'game_not_found' }
+			this.log(`Game (${gameId}) not found; ${client.username} (${client.id})`)
 			return this.socket.emit(RESP, resp)
 		}
 		if (gameId === client.activeGame) {
 			const resp = { success: false, message: 'game_already_in' }
+			this.log(`Player already in game (${gameId}); ${client.username} (${client.id})`)
 			return this.socket.emit(RESP, resp)
 		}
 		if (game.players.length >= this.playerLimit) {
 			const resp = { success: false, message: 'game_session_full' }
+			this.log(`Game session full (${gameId}); ${client.username} (${client.id})`)
 			return this.socket.emit(RESP, resp)
 		}
 		game.players.push(client)
@@ -86,6 +98,7 @@ class AppController {
 		this.socket.join(gameId)
 		this.socket.emit(RESP, resp)
 		this.socket.to(gameId).emit('game-player-added', { id: client.id, name: client.username })
+		this.log(`Player ${client.username} (${client.id}) joined game (${gameId}) `)
 	}
 
 	leaveGame (gameId) {
@@ -94,10 +107,12 @@ class AppController {
 		const game = this.gameMap.get(gameId)
 		if (!game) {
 			const resp = { success: false, message: 'game_not_found' }
+			this.log(`Game (${gameId}) not found; ${client.username} (${client.id})`)
 			return this.socket.emit(RESP, resp)
 		}
 		if (game.id !== client.activeGame) {
 			const resp = { success: false, message: 'game_not_in' }
+			this.log(`Player not in game (${gameId}); ${client.username} (${client.id})`)
 			return this.socket.emit(RESP, resp)
 		}
 		const isCreator = this.removeFromGame(client, game)
@@ -116,14 +131,14 @@ class AppController {
 		this.userMap.set(client.id, client)
 		this.socket.leave(game.id)
 		this.io.to(game.id).emit('game-player-removed', client.id)
-		log(`${client.username} was disconnected from game ${game.id}`)
+		this.log(`${client.username} (${client.id}) was disconnected from game ${game.id}`)
 		return game.createdBy === client.id
 	}
 
 	removeGame (gameId) {
 		this.gameMap.delete(gameId)
 		this.resetClients(gameId, 'game_creator_disconnected')
-		log(`Game ${gameId} was deleted and all its clients were disconnected`)
+		this.log(`Game ${gameId} was deleted and all its clients were disconnected`)
 	}
 
 	disconnectClient (reason) {
@@ -137,7 +152,7 @@ class AppController {
 			isCreator = this.removeFromGame(client, game)
 		}
 		this.userMap.delete(client.id)
-		log(`Connection terminated with ${clientName}: ${reason}`)
+		this.log(`Connection terminated with ${clientName}: ${reason}`)
 		if (isCreator) {
 			this.removeGame(gameId)
 		}

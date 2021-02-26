@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Server log</title>
+	<style>
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+			font-family: monospace;
+		}
+		html {
+			height: 100vh;
+		}
+		body {
+			height: 100%;
+			display: block;
+		}
+		.container {
+			display: flex;
+			flex-flow: row nowrap;
+			width: 100%;
+			height: 100%;
+			background-color: black;
+		}
+		.col {
+			width: 29%;
+			height: 100%;
+			overflow: auto;
+			padding: 15px;
+		}
+		.col + .col {
+			border-left: 1px solid #06d206;
+		}
+		.col-logs {
+			width: 44%;
+		}
+		h1 {
+			border-bottom: 1px solid #06d206;
+			margin-bottom: 15px;
+			padding-bottom: 10px;
+			color: #06d206;
+		}
+		.log-msg, .client, .game {
+			background-color: #383535;
+			padding: 3px 5px;
+			margin-bottom: 10px;
+			color: #06d206;
+		}
+
+		.game ol {
+			margin-left: 30px;
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="col col-logs">
+			<h1>Logs</h1>
+			<div></div>
+		</div>
+		<div class="col col-users">
+			<h1>Clients</h1>
+			<div></div>
+		</div>
+		<div class="col col-games">
+			<h1>Games</h1>
+			<div></div>
+		</div>
+	</div>
+	<script src="http://192.168.0.101:3000/socket.io/socket.io.js"></script>
+<script>
+	(function () {
+
+		const socket = io('http://192.168.0.101:3000', { autoConnect: false })
+		socket.auth = { username: 'LOGGER' }
+		socket.connect()
+
+		const logs = document.querySelector('.col-logs div')
+		const logsContainer = document.querySelector('.col-logs')
+		const users = document.querySelector('.col-users div')
+		const games = document.querySelector('.col-games div')
+
+		socket.on('log', resp => {
+			const time = '[' + (new Date()).toLocaleTimeString('en-GB', {
+				hour: 'numeric',
+				minute: 'numeric',
+				second: 'numeric',
+			}) + ']'
+			const logMsg = `<div class="log-msg">${time} ${resp.message}</div>`
+			logs.innerHTML += logMsg
+			logsContainer.scrollTop = logsContainer.scrollHeight
+
+			let clients = ''
+			for (const client of resp.clients) {
+				clients = clients + `<div class="client"><div><b>${client.username}</b></div><div>${client.id}</div><div>${client.activeGame || 'NO GAME'}</div></div>`
+			}
+			users.innerHTML = clients
+
+			let gamesContent = ''
+			for (const game of resp.games) {
+				const players = '<ol>' + game.players.map(user => `<li>${user.username} (${user.id})</li>`).join('') + '</ol>'
+				gamesContent = gamesContent + `<div class="game"><div><b>${game.id}</b></div><div>Created by: ${game.createdBy}</div>${players}</div>`
+			}
+			games.innerHTML = gamesContent
+		})
+
+	})()
+</script>
+</body>
+</html>

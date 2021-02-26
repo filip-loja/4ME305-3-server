@@ -1,6 +1,16 @@
 
+const fs = require('fs').promises
+const requestListener = function (req, res) {
+	fs.readFile(`${__dirname}/index.html`)
+		.then(contents => {
+			res.setHeader('Content-Type', 'text/html')
+			res.writeHead(200)
+			res.end(contents)
+		})
+}
+
 const AppController = require('./AppController')
-const httpServer = require('http').createServer()
+const httpServer = require('http').createServer(requestListener)
 const io = require('socket.io')(httpServer, {
 	cors: {
 		origin: '*',
