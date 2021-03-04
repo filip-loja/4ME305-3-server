@@ -1,4 +1,4 @@
-import {AppSocket, AppStorage, Game, User} from './types'
+import { AppSocket, AppStorage, Game, User } from './types'
 import AppController from './AppController'
 
 const fs = require('fs').promises

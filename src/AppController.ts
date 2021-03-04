@@ -2,6 +2,7 @@ import { AppSocket, AppStorage, Game, User } from './types'
 import { Server } from 'socket.io'
 
 const LOGGER_CHANNEL = 'logger_channel'
+const generateGameId = (): string => (String(Date.now()))
 
 export default class AppController {
 	socket: AppSocket = null
@@ -25,7 +26,19 @@ export default class AppController {
 		this.socket.on('game-leave', this.leaveGame.bind(this))
 	}
 
-	init () {
+	get user (): User {
+		return this.userMap.get(this.socket.id)
+	}
+
+	get userSignature (): { id: string, name: string } {
+		return { id: this.user.id, name: this.user.name }
+	}
+
+	get userSignatureStr (): string {
+		return this.user ? `${this.user.name} (${this.user.id})` : ''
+	}
+
+	init (): void {
 		const name = this.socket.type === 'logger' ? `[LOGGER] ${this.socket.username}` : this.socket.username
 		const currentClient: User = {
 			id: this.socket.id,
@@ -42,7 +55,7 @@ export default class AppController {
 		this.log(`Established connection with ${name} (${this.socket.id})`)
 	}
 
-	log (...messages: any) {
+	log (...messages: any): void {
 		const payload = {
 			message: messages.join(' '),
 			clients: [...this.userMap.values()],
@@ -52,81 +65,76 @@ export default class AppController {
 		// console.log(...messages)
 	}
 
-	resetClients (gameId: string, reason: string) {
+	resetClients (gameId: string, reason: string): void {
 		this.log(`Sending "reset" signal to all clients in ${gameId}`)
 		this.io.to(gameId).emit('reset', reason)
 	}
 
-	renameClient (newUsername: string) {
-		const user = this.userMap.get(this.socket.id)
-		user.name = newUsername
-		this.userMap.set(this.socket.id, user)
+	renameClient (newUsername: string): void {
+		this.user.name = newUsername
 		this.socket.emit('client-rename-resp', true)
-		this.log(`Client name changed to ${newUsername} (${user.id})`)
+		this.log(`Client name changed to ${newUsername} (${this.user.id})`)
 	}
 
-	createGame () {
-		const gameId = String(Date.now())
-		const client = this.userMap.get(this.socket.id)
-		client.activeGame = gameId
-		this.userMap.set(client.id, client)
+	createGame (): void {
+		const gameId = generateGameId()
+		this.user.activeGame = gameId
 		const game = {
 			id: gameId,
-			createdBy: client.id,
-			players: [ client ]
+			createdBy: this.user.id,
+			players: [ this.user ]
 		}
 		this.gameMap.set(gameId, game)
 		this.socket.join(gameId)
 		this.socket.emit('game-create-resp', gameId)
-		this.io.to(gameId).emit('game-player-added', { id: client.id, name: client.name })
-		this.log(`New game created by ${client.name}:  ${gameId}`)
+		this.io.to(gameId).emit('game-player-added', this.userSignature)
+		this.log(`New game created by ${this.user.name}:  ${gameId}`)
 	}
 
-	joinGame (gameId: string) {
+	joinGame (gameId: string): any {
 		const RESP = 'game-join-resp'
-		const client = this.userMap.get(this.socket.id)
 		const game = this.gameMap.get(gameId)
 		if (!game) {
 			const resp = { success: false, message: 'game_not_found' }
-			this.log(`Game (${gameId}) not found; ${client.name} (${client.id})`)
+			this.log(`Game (${gameId}) not found; ${this.userSignatureStr})`)
 			return this.socket.emit(RESP, resp)
 		}
-		if (gameId === client.activeGame) {
+		if (gameId === this.user.activeGame) {
 			const resp = { success: false, message: 'game_already_in' }
-			this.log(`Player already in game (${gameId}); ${client.name} (${client.id})`)
+			this.log(`Player already in game (${gameId}); ${this.userSignatureStr})`)
 			return this.socket.emit(RESP, resp)
 		}
 		if (game.players.length >= this.playerLimit) {
 			const resp = { success: false, message: 'game_session_full' }
-			this.log(`Game session full (${gameId}); ${client.name} (${client.id})`)
+			this.log(`Game session full (${gameId}); ${this.userSignatureStr})`)
 			return this.socket.emit(RESP, resp)
 		}
-		game.players.push(client)
-		client.activeGame = gameId
-		this.userMap.set(client.id, client)
-		const players = game.players.map(player => ({ id: player.id, name: player.name }))
-		const resp = { success: true, players }
+		game.players.push(this.user)
+		this.user.activeGame = gameId
+		const resp = {
+			success: true,
+			players: game.players.map(player => ({ id: player.id, name: player.name }))
+		}
 		this.socket.join(gameId)
 		this.socket.emit(RESP, resp)
-		this.socket.to(gameId).emit('game-player-added', { id: client.id, name: client.name })
-		this.log(`Player ${client.name} (${client.id}) joined game (${gameId}) `)
+		this.socket.to(gameId).emit('game-player-added', this.userSignature)
+		this.log(`Player ${this.userSignatureStr} joined game (${gameId}) `)
 	}
 
-	leaveGame (gameId: string) {
+	leaveGame (gameId: string): any {
 		const RESP = 'game-leave-resp'
-		const client = this.userMap.get(this.socket.id)
 		const game = this.gameMap.get(gameId)
 		if (!game) {
 			const resp = { success: false, message: 'game_not_found' }
-			this.log(`Game (${gameId}) not found; ${client.name} (${client.id})`)
+			this.log(`Game (${gameId}) not found; ${this.userSignatureStr}`)
 			return this.socket.emit(RESP, resp)
 		}
-		if (game.id !== client.activeGame) {
+		if (game.id !== this.user.activeGame) {
 			const resp = { success: false, message: 'game_not_in' }
-			this.log(`Player not in game (${gameId}); ${client.name} (${client.id})`)
+			this.log(`Player not in game (${gameId}); ${this.userSignatureStr}`)
 			return this.socket.emit(RESP, resp)
 		}
-		const isCreator = this.removeFromGame(client, game)
+		const isCreator = this.removeFromGame(this.user, game)
 		const resp = { success: true }
 		this.socket.emit(RESP, resp)
 		if (isCreator) {
@@ -134,39 +142,34 @@ export default class AppController {
 		}
 	}
 
-	removeFromGame (client: User, game: Game) {
+	removeFromGame (client: User, game: Game): boolean {
 		const index = game.players.findIndex((player: User) => player.id === client.id)
 		game.players.splice(index, 1)
-		this.gameMap.set(game.id, game)
 		client.activeGame = null
-		this.userMap.set(client.id, client)
 		this.socket.leave(game.id)
 		this.io.to(game.id).emit('game-player-removed', client.id)
 		this.log(`${client.name} (${client.id}) was disconnected from game ${game.id}`)
 		return game.createdBy === client.id
 	}
 
-	removeGame (gameId: string) {
+	removeGame (gameId: string): void {
 		this.gameMap.delete(gameId)
 		this.resetClients(gameId, 'game_creator_disconnected')
 		this.log(`Game ${gameId} was deleted and all its clients were disconnected`)
 	}
 
-	disconnectClient (reason: string) {
-		const client = this.userMap.get(this.socket.id)
-		const game = client.activeGame && this.gameMap.get(client.activeGame)
-		const clientName = client.name
-		let isCreator
-		let gameId
-		if (client.activeGame && game) {
+	disconnectClient (reason: string): void {
+		const game = this.user.activeGame && this.gameMap.get(this.user.activeGame)
+		let isCreator, gameId
+		if (this.user.activeGame && game) {
 			gameId = game.id
-			isCreator = this.removeFromGame(client, game)
+			isCreator = this.removeFromGame(this.user, game)
 		}
-		if (client.type === 'logger') {
+		if (this.user.type === 'logger') {
 			this.socket.leave(LOGGER_CHANNEL)
 		}
-		this.userMap.delete(client.id)
-		this.log(`Connection terminated with ${clientName}: ${reason}`)
+		this.userMap.delete(this.user.id)
+		this.log(`Connection terminated with ${this.userSignatureStr}: ${reason}`)
 		if (isCreator) {
 			this.removeGame(gameId)
 		}
