@@ -73,8 +73,13 @@
 <script>
 	(function () {
 
+		const loggerName = prompt('Type your name', '')
+		if (!loggerName.trim()) {
+			return
+		}
+
 		const socket = io('http://192.168.0.101:3000', { autoConnect: false })
-		socket.auth = { username: 'LOGGER' }
+		socket.auth = { username: loggerName, type: 'logger' }
 		socket.connect()
 
 		const logs = document.querySelector('.col-logs div')

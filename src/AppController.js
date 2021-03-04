@@ -1,4 +1,6 @@
 
+const LOGGER_CHANNEL = 'logger_channel'
+
 class AppController {
 	socket = null
 	io = null
@@ -21,14 +23,20 @@ class AppController {
 	}
 
 	init () {
+		const name = this.socket.type === 'logger' ? `[LOGGER] ${this.socket.username}` : this.socket.username
 		const currentClient = {
 			id: this.socket.id,
-			username: this.socket.username,
-			activeGame: null
+			username: name,
+			type: this.socket.type,
+			activeGame: null,
+			// socket: this.socket
+		}
+		if (currentClient.type === 'logger') {
+			this.socket.join(LOGGER_CHANNEL)
 		}
 		this.userMap.set(currentClient.id, currentClient)
 		this.socket.emit('connection-established', this.socket.id)
-		this.log(`Established connection with ${this.socket.username} (${this.socket.id})`)
+		this.log(`Established connection with ${name} (${this.socket.id})`)
 	}
 
 	log (...messages) {
@@ -37,8 +45,8 @@ class AppController {
 			clients: [...this.userMap.values()],
 			games: [...this.gameMap.values()]
 		}
-		this.io.emit('log', payload)
-		console.log(...messages)
+		this.io.to(LOGGER_CHANNEL).emit('log', payload)
+		// console.log(...messages)
 	}
 
 	resetClients (gameId, reason) {
@@ -150,6 +158,9 @@ class AppController {
 		if (client.activeGame && game) {
 			gameId = game.id
 			isCreator = this.removeFromGame(client, game)
+		}
+		if (client.type === 'logger') {
+			this.socket.leave(LOGGER_CHANNEL)
 		}
 		this.userMap.delete(client.id)
 		this.log(`Connection terminated with ${clientName}: ${reason}`)

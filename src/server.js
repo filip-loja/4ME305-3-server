@@ -9,24 +9,28 @@ const requestListener = function (req, res) {
 		})
 }
 
-const AppController = require('./AppController')
 const httpServer = require('http').createServer(requestListener)
-const io = require('socket.io')(httpServer, {
-	cors: {
-		origin: '*',
-	}
+httpServer.listen(3000, () => {
+	console.log(`Server is listening on 3000\n`)
 })
 
+const AppController = require('./AppController')
 const userMap = new Map()
 const gameMap = new Map()
 
+const io = require('socket.io')(httpServer, {
+	cors: { origin: '*' }
+})
+
 io.use((socket, next) => {
 	const username = socket.handshake.auth.username
+	const type = socket.handshake.auth.type
 	if (!username) {
-		console.log('ERROR')
+		console.log('No username provided')
 		return next(new Error('invalid username'))
 	}
 	socket.username = username
+	socket.type = type === 'logger' ? 'logger' : 'player'
 	next()
 })
 
@@ -34,7 +38,4 @@ io.on('connection', (socket) => {
 	new AppController(socket, io, userMap, gameMap)
 })
 
-httpServer.listen(3000, () => {
-	console.log(`Server is listening on 3000\n`)
-})
 
