@@ -8,7 +8,7 @@
     "build": "npm run clean-dist && npm run copy-public && tsc",
     "dev": "ts-node-dev --respawn -- src/server.ts",
     "clean-dist": "rm -rf ./dist",
-    "copy-public": "cp -r ./public/ ./dist/public"
+    "copy-public": "cp -r ./public/ ./public"
   },
   "author": "",
   "license": "ISC",
