@@ -1,8 +1,11 @@
+import { AppSocket } from './types'
 
 const fs = require('fs').promises
-const requestListener = function (req, res) {
-	fs.readFile(`${__dirname}/index.html`)
-		.then(contents => {
+const path = require('path')
+const requestListener = function (req: any, res: any) {
+	const indexPath = path.resolve('./public/index.html')
+	fs.readFile(indexPath)
+		.then((contents: any) => {
 			res.setHeader('Content-Type', 'text/html')
 			res.writeHead(200)
 			res.end(contents)
@@ -22,7 +25,7 @@ const io = require('socket.io')(httpServer, {
 	cors: { origin: '*' }
 })
 
-io.use((socket, next) => {
+io.use((socket: AppSocket, next: any) => {
 	const username = socket.handshake.auth.username
 	const type = socket.handshake.auth.type
 	if (!username) {
@@ -34,7 +37,7 @@ io.use((socket, next) => {
 	next()
 })
 
-io.on('connection', (socket) => {
+io.on('connection', (socket: AppSocket) => {
 	new AppController(socket, io, userMap, gameMap)
 })
 
