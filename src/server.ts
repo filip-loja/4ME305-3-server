@@ -1,4 +1,5 @@
-import { AppSocket } from './types'
+import {AppSocket, AppStorage, Game, User} from './types'
+import AppController from './AppController'
 
 const fs = require('fs').promises
 const path = require('path')
@@ -17,9 +18,10 @@ httpServer.listen(3000, () => {
 	console.log(`Server is listening on 3000\n`)
 })
 
-const AppController = require('./AppController')
-const userMap = new Map()
-const gameMap = new Map()
+const appStorage: AppStorage = {
+	users: new Map<string, User>(),
+	games: new Map<string, Game>(),
+}
 
 const io = require('socket.io')(httpServer, {
 	cors: { origin: '*' }
@@ -38,7 +40,7 @@ io.use((socket: AppSocket, next: any) => {
 })
 
 io.on('connection', (socket: AppSocket) => {
-	new AppController(socket, io, userMap, gameMap)
+	new AppController(socket, io, appStorage)
 })
 
 

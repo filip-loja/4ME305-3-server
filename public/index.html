@@ -99,13 +99,13 @@
 
 			let clients = ''
 			for (const client of resp.clients) {
-				clients = clients + `<div class="client"><div><b>${client.username}</b></div><div>${client.id}</div><div>${client.activeGame || 'NO GAME'}</div></div>`
+				clients = clients + `<div class="client"><div><b>${client.name}</b></div><div>${client.id}</div><div>${client.activeGame || 'NO GAME'}</div></div>`
 			}
 			users.innerHTML = clients
 
 			let gamesContent = ''
 			for (const game of resp.games) {
-				const players = '<ol>' + game.players.map(user => `<li>${user.username} (${user.id})</li>`).join('') + '</ol>'
+				const players = '<ol>' + game.players.map(user => `<li>${user.name} (${user.id})</li>`).join('') + '</ol>'
 				gamesContent = gamesContent + `<div class="game"><div><b>${game.id}</b></div><div>Created by: ${game.createdBy}</div>${players}</div>`
 			}
 			games.innerHTML = gamesContent
