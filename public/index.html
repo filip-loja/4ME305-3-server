@@ -52,6 +52,14 @@
 		.game ol {
 			margin-left: 30px;
 		}
+
+		#fl-btn {
+			display: block;
+			position: absolute;
+			top: 5px;
+			right: 5px;
+			padding: 10px 5px;
+		}
 	</style>
 </head>
 <body>
@@ -68,6 +76,7 @@
 			<h1>Games</h1>
 			<div></div>
 		</div>
+		<button id="fl-btn">Full Screen</button>
 	</div>
 	<script src="http://192.168.0.101:3000/socket.io/socket.io.js"></script>
 <script>
@@ -86,6 +95,17 @@
 		const logsContainer = document.querySelector('.col-logs')
 		const users = document.querySelector('.col-users div')
 		const games = document.querySelector('.col-games div')
+		const flBtn = document.querySelector('#fl-btn')
+
+		flBtn.addEventListener('click', () => {
+			if (!document.fullscreenElement) {
+				document.documentElement.requestFullscreen()
+			} else {
+				if (document.exitFullscreen) {
+					document.exitFullscreen()
+				}
+			}
+		})
 
 		socket.on('log', resp => {
 			const time = '[' + (new Date()).toLocaleTimeString('en-GB', {

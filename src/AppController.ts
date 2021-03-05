@@ -1,5 +1,6 @@
-import { AppSocket, AppStorage, Game, User } from './types'
+import {AppSocket, AppStorage, CommittedTurn, Game, GameInitialState, User} from './types'
 import { Server } from 'socket.io'
+import GameController from './GameController'
 
 const LOGGER_CHANNEL = 'logger_channel'
 const generateGameId = (): string => (String(Date.now()))
@@ -24,6 +25,8 @@ export default class AppController {
 		this.socket.on('game-create', this.createGame.bind(this))
 		this.socket.on('game-join', this.joinGame.bind(this))
 		this.socket.on('game-leave', this.leaveGame.bind(this))
+		this.socket.on('game-start', this.startGame.bind(this))
+		this.socket.on('game-turn-commit', this.commitTurn.bind(this))
 	}
 
 	get user (): User {
@@ -61,7 +64,7 @@ export default class AppController {
 			clients: [...this.userMap.values()],
 			games: [...this.gameMap.values()]
 		}
-		this.io.to(LOGGER_CHANNEL).emit('log', payload)
+		this.groupBroadCast(LOGGER_CHANNEL, 'log', payload)
 		// console.log(...messages)
 	}
 
@@ -79,10 +82,11 @@ export default class AppController {
 	createGame (): void {
 		const gameId = generateGameId()
 		this.user.activeGame = gameId
-		const game = {
+		const game: Game = {
 			id: gameId,
 			createdBy: this.user.id,
-			players: [ this.user ]
+			players: [ this.user ],
+			controller: null
 		}
 		this.gameMap.set(gameId, game)
 		this.socket.join(gameId)
@@ -173,6 +177,28 @@ export default class AppController {
 		if (isCreator) {
 			this.removeGame(gameId)
 		}
+	}
+
+	groupBroadCast (groupId: string, event: string, payload: any = null): void {
+		this.io.to(groupId).emit(event, payload)
+	}
+
+	startGame (gameId: string): void {
+		// TODO nejaky check prav a ci tam naozaj je
+		const game = this.gameMap.get(gameId)
+		game.controller = new GameController(game.players)
+		const initialState: GameInitialState = game.controller.getInitialState()
+		this.groupBroadCast(gameId, 'game-started', initialState)
+		this.log(`Game (${gameId}) started by ${this.userSignatureStr}. Initial state generated and sent to all players.`)
+	}
+
+	commitTurn (data: { id: string; payload: CommittedTurn }): void {
+		const RESP = 'game-turn-commit-resp'
+		const game = this.gameMap.get(data.id)
+		const diff = game.controller.commitTurn(data.payload)
+		const resp = { success: true, nextPlayerId: game.controller.currentPlayerId }
+		this.socket.emit(RESP, resp)
+		this.socket.to(data.id).emit('game-new-turn', diff)
 	}
 
 }
