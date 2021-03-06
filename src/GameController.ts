@@ -1,7 +1,7 @@
 
 import cards from './cards'
 import {
-	CardColor,
+	CardColor, CardEffect,
 	CardMap,
 	CardState,
 	CardStateItem,
@@ -23,7 +23,7 @@ export default class GameController {
 	currentPlayer: number = 0
 	currentColor: CardColor = null
 	currentType: CardType = null
-	currentEffects: string[] = []
+	currentEffects: CardEffect[] = []
 
 	constructor (players: User[]) {
 		this.playerOrder = arrayShuffle(players.map(player => player.id))
@@ -41,8 +41,17 @@ export default class GameController {
 		return this.playerCardState[this.currentPlayerId]
 	}
 
+	get pendingEffect (): CardEffect {
+		if (this.currentEffects.length) {
+			return this.currentEffects[0]
+		}
+		return null
+	}
+
 	get minStackCount (): number {
-		// TODO toto cislo upravit podla efektu - sedma
+		if (this.pendingEffect === 'seven') {
+			return 3 * this.currentEffects.length + 1
+		}
 		return 3
 	}
 
@@ -138,6 +147,9 @@ export default class GameController {
 
 		let shuffledCards: string[] = []
 		if (this.cardStack.length < this.minStackCount) {
+			while (this.cardDeck.length + 1 < this.minStackCount && this.currentEffects.length) {
+				this.currentEffects.pop()
+			}
 			shuffledCards = this.reshuffleCards()
 		}
 
