@@ -64,6 +64,14 @@ export default class GameController {
 		return Object.values(this.playerCardState).find(state => !state.finished)
 	}
 
+	get cardStats (): string {
+		const stack = this.cardStack.length
+		const deck = this.cardDeck.length
+		const players = Object.values(this.playerCardState).reduce((acc, state) => acc += state.cards.length, 0)
+		const effects = '[' + this.currentEffects.join(',') + ']'
+		return `Stack: ${stack} | Deck: ${deck} | Players: ${players} | Effects: ${effects}`
+	}
+
 	initPlayerCardState () {
 		for (const playerId of this.playerOrder) {
 			this.playerCardState[playerId] = {
@@ -145,9 +153,14 @@ export default class GameController {
 			this.currentColor = payload.newColor
 		}
 
+		/** Only N - 1 "Ace" effects can be active; N = number of players */
+		if (this.pendingEffect === 'ace' && this.currentEffects.length >= this.playerOrder.length) {
+			this.currentEffects.pop()
+		}
+
 		let shuffledCards: string[] = []
 		if (this.cardStack.length < this.minStackCount) {
-			while (this.cardDeck.length + 1 < this.minStackCount && this.currentEffects.length) {
+			while ((this.cardStack.length + this.cardDeck.length + 1) < this.minStackCount && this.currentEffects.length) {
 				this.currentEffects.pop()
 			}
 			shuffledCards = this.reshuffleCards()
@@ -160,7 +173,7 @@ export default class GameController {
 		const diff: TurnDiff = {
 			stackRemoved: payload.cardsTaken,
 			deckAdded: payload.cardsGiven,
-			effects: payload.newEffects,
+			effects: this.currentEffects,
 			color: this.currentColor,
 			currentPlayer: currentPlayerId,
 			lastPlayer: lastPlayerId,

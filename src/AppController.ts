@@ -206,6 +206,7 @@ export default class AppController {
 		} else {
 			console.log('ROUND IS FINISHED')
 		}
+		this.log(game.controller.cardStats)
 	}
 
 }
