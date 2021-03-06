@@ -1,4 +1,4 @@
-import {AppSocket, AppStorage, CommittedTurn, Game, GameInitialState, User} from './types'
+import {AppSocket, AppStorage, CommittedTurn, Game, RoundInitialState, User} from './types'
 import { Server } from 'socket.io'
 import GameController from './GameController'
 
@@ -188,8 +188,9 @@ export default class AppController {
 
 		const game = this.gameMap.get(gameId)
 		game.controller = new GameController(game.players)
-		const initialState: GameInitialState = game.controller.getInitialState()
-		this.groupBroadCast(gameId, 'game-started', initialState)
+		// const initialState: GameInitialState = game.controller.getInitialState()
+		const initialState: RoundInitialState = game.controller.initNewRound()
+		this.groupBroadCast(gameId, 'game-round-new', initialState)
 		this.log(`Game (${gameId}) started by ${this.userSignatureStr}. Initial state generated and sent to all players.`)
 	}
 
@@ -204,7 +205,9 @@ export default class AppController {
 		if (diff) {
 			this.groupBroadCast(data.id, 'game-new-turn', diff)
 		} else {
-			console.log('ROUND IS FINISHED')
+			const initialState: RoundInitialState = game.controller.initNewRound()
+			this.groupBroadCast(data.id, 'game-round-new', initialState)
+			this.log('New round initiated')
 		}
 		this.log(game.controller.cardStats)
 	}

@@ -49,7 +49,7 @@ export interface CardState {
 	[key: string]: CardStateItem
 }
 
-export interface GameInitialState {
+export interface RoundInitialState {
 	stack: string[];
 	deck: string[];
 	color: CardColor;
@@ -57,6 +57,7 @@ export interface GameInitialState {
 	currentPlayer: string;
 	playerOrder: string[];
 	effects: CardEffect[];
+	roundNumber: number;
 	cardAssignment: {
 		[key: string]: string[]
 	}

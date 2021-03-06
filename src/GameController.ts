@@ -1,4 +1,5 @@
 
+import arrayShuffle from 'array-shuffle'
 import cards from './cards'
 import {
 	CardColor, CardEffect,
@@ -7,11 +8,10 @@ import {
 	CardStateItem,
 	CardType,
 	CommittedTurn,
-	GameInitialState,
+	RoundInitialState,
 	TurnDiff,
 	User
 } from './types'
-import arrayShuffle from 'array-shuffle'
 
 export default class GameController {
 
@@ -24,13 +24,11 @@ export default class GameController {
 	currentColor: CardColor = null
 	currentType: CardType = null
 	currentEffects: CardEffect[] = []
+	roundNumber = 0
 
 	constructor (players: User[]) {
 		this.playerOrder = arrayShuffle(players.map(player => player.id))
-		this.cardStack = arrayShuffle(Object.keys(this.cardMap))
-
 		this.initPlayerCardState()
-		this.assignCards()
 	}
 
 	get currentPlayerId (): string {
@@ -72,7 +70,7 @@ export default class GameController {
 		return `Stack: ${stack} | Deck: ${deck} | Players: ${players} | Effects: ${effects}`
 	}
 
-	initPlayerCardState () {
+	initPlayerCardState (): void {
 		for (const playerId of this.playerOrder) {
 			this.playerCardState[playerId] = {
 				startCardCount: 5,
@@ -82,17 +80,31 @@ export default class GameController {
 		}
 	}
 
-	assignCards () {
+	resetPlayerCardState (): void {
+		for (const playerId of this.playerOrder) {
+			this.playerCardState[playerId].finished = false
+			this.playerCardState[playerId].cards = []
+		}
+	}
+
+	assignCards (): void {
 		for (const playerId of this.playerOrder) {
 			this.playerCardState[playerId].cards = this.cardStack.splice(0, this.playerCardState[playerId].startCardCount)
 		}
 		this.cardDeck.push(this.cardStack.splice(0, 1)[0])
 		this.currentColor = this.cardMap[this.cardDeck[0]].color
 		this.currentType = this.cardMap[this.cardDeck[0]].type
+		this.currentEffects = []
 	}
 
-	getInitialState (): GameInitialState {
-		const resp: GameInitialState = {
+	initNewRound (): RoundInitialState {
+		this.roundNumber++
+		this.cardStack = arrayShuffle(Object.keys(this.cardMap))
+		this.cardDeck = []
+		this.resetPlayerCardState()
+		this.assignCards()
+
+		const state: RoundInitialState = {
 			stack: this.cardStack,
 			deck: this.cardDeck,
 			color: this.currentColor,
@@ -100,15 +112,16 @@ export default class GameController {
 			currentPlayer: this.currentPlayerId,
 			cardAssignment: {} as any,
 			playerOrder: this.playerOrder,
-			effects: []	// TODO pridat zaciatocne efekty
+			effects: this.currentEffects,
+			roundNumber: this.roundNumber
 		}
 		for (const playerId in this.playerCardState) {
-			resp.cardAssignment[playerId] = this.playerCardState[playerId].cards
+			state.cardAssignment[playerId] = this.playerCardState[playerId].cards
 		}
-		return resp
+		return state
 	}
 
-	shiftPlayer () {
+	shiftPlayer (): void {
 		this.currentPlayer++
 		if (this.currentPlayer === this.playerOrder.length) {
 			this.currentPlayer = 0
