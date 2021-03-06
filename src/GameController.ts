@@ -1,12 +1,22 @@
 
 import cards from './cards'
-import {CardColor, CardMap, CardState, CardType, CommittedTurn, GameInitialState, TurnDiff, User} from './types'
+import {
+	CardColor,
+	CardMap,
+	CardState,
+	CardStateItem,
+	CardType,
+	CommittedTurn,
+	GameInitialState,
+	TurnDiff,
+	User
+} from './types'
 import arrayShuffle from 'array-shuffle'
 
 export default class GameController {
+
 	cardMap: CardMap = cards
 	playerOrder: string[] = null
-
 	playerCardState: CardState = {}
 	cardStack: string[] = []
 	cardDeck: string[] = []
@@ -25,6 +35,24 @@ export default class GameController {
 
 	get currentPlayerId (): string {
 		return this.playerOrder[this.currentPlayer]
+	}
+
+	get currentPlayerCardState (): CardStateItem {
+		return this.playerCardState[this.currentPlayerId]
+	}
+
+	get minStackCount (): number {
+		// TODO toto cislo upravit podla efektu - sedma
+		return 3
+	}
+
+	get roundFinished (): boolean {
+		const finishedCount = Object.values(this.playerCardState).filter(state => state.finished).length
+		return finishedCount === Object.values(this.playerCardState).length - 1
+	}
+
+	get looser (): CardStateItem {
+		return Object.values(this.playerCardState).find(state => !state.finished)
 	}
 
 	initPlayerCardState () {
@@ -53,7 +81,9 @@ export default class GameController {
 			color: this.currentColor,
 			type: this.currentType,
 			currentPlayer: this.currentPlayerId,
-			cardAssignment: {} as any
+			cardAssignment: {} as any,
+			playerOrder: this.playerOrder,
+			effects: []	// TODO pridat zaciatocne efekty
 		}
 		for (const playerId in this.playerCardState) {
 			resp.cardAssignment[playerId] = this.playerCardState[playerId].cards
@@ -68,33 +98,63 @@ export default class GameController {
 		}
 		if (this.playerCardState[this.playerOrder[this.currentPlayer]].finished) {
 			// TODO hrozi nekonecne zacyklenie, osetrit!
+			// uz by nemalo nastat funkcia sa nezavola ked bude len jeden neskonceny hrac
 			this.shiftPlayer()
 		}
 	}
 
+	reshuffleCards(): string[] {
+		let cards = this.cardDeck.slice()
+		const upperCard = cards.pop()
+		this.cardDeck = [ upperCard ]
+		cards = arrayShuffle(cards)
+		this.cardStack.push(...cards)
+		return cards
+	}
+
 	commitTurn (payload: CommittedTurn) {
 		// TODO check turn validity
-		this.currentEffects = payload.newEffects
+
 		this.cardStack = this.cardStack.filter(id => !payload.cardsTaken.includes(id))
-		this.cardDeck.unshift(...payload.cardsGiven)
-		// TODO pridat karty hracovi
+		this.cardDeck.push(...payload.cardsGiven)
+
+		this.currentPlayerCardState.cards = this.currentPlayerCardState.cards.filter(id => !payload.cardsGiven.includes(id))
+		this.currentPlayerCardState.cards.push(...payload.cardsTaken)
+		if (this.currentPlayerCardState.cards.length === 0) {
+			this.currentPlayerCardState.finished = true
+		}
+		console.log(this.currentPlayerCardState, this.roundFinished)
+
+		if (this.roundFinished) {
+			// TODO zabezpecit aby to nekleslo pod nulu
+			this.looser.startCardCount -= 1
+			return null
+		}
+
+		this.currentEffects = payload.newEffects
 		if (payload.newColor) {
 			this.currentColor = payload.newColor
 		}
+
+		let shuffledCards: string[] = []
+		if (this.cardStack.length < this.minStackCount) {
+			shuffledCards = this.reshuffleCards()
+		}
+
+		const lastPlayerId = this.currentPlayerId
 		this.shiftPlayer()
+		const currentPlayerId = this.currentPlayerId
+
 		const diff: TurnDiff = {
-			stackAdded: [],
 			stackRemoved: payload.cardsTaken,
 			deckAdded: payload.cardsGiven,
-			deckRemoved: [],
 			effects: payload.newEffects,
 			color: this.currentColor,
-			currentPlayer: this.currentPlayerId
+			currentPlayer: currentPlayerId,
+			lastPlayer: lastPlayerId,
+			reshuffle: shuffledCards
 		}
+
 		return diff
 	}
-
-	// get cardIds (): number[] {
-	// 	return Object.values(this.cardMap)
-	// }
 }

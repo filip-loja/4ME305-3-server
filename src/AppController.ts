@@ -185,6 +185,7 @@ export default class AppController {
 
 	startGame (gameId: string): void {
 		// TODO nejaky check prav a ci tam naozaj je
+
 		const game = this.gameMap.get(gameId)
 		game.controller = new GameController(game.players)
 		const initialState: GameInitialState = game.controller.getInitialState()
@@ -193,12 +194,18 @@ export default class AppController {
 	}
 
 	commitTurn (data: { id: string; payload: CommittedTurn }): void {
+		// TODO nejaky check prav a ci tam naozaj je
+
 		const RESP = 'game-turn-commit-resp'
 		const game = this.gameMap.get(data.id)
 		const diff = game.controller.commitTurn(data.payload)
-		const resp = { success: true, nextPlayerId: game.controller.currentPlayerId }
+		const resp = { success: true }
 		this.socket.emit(RESP, resp)
-		this.socket.to(data.id).emit('game-new-turn', diff)
+		if (diff) {
+			this.groupBroadCast(data.id, 'game-new-turn', diff)
+		} else {
+			console.log('ROUND IS FINISHED')
+		}
 	}
 
 }

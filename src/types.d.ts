@@ -55,6 +55,8 @@ export interface GameInitialState {
 	color: CardColor;
 	type: CardType;
 	currentPlayer: string;
+	playerOrder: string[];
+	effects: CardEffect[];
 	cardAssignment: {
 		[key: string]: string[]
 	}
@@ -68,11 +70,11 @@ export interface CommittedTurn {
 }
 
 export interface TurnDiff {
-	stackAdded: string[];
 	stackRemoved: string[];
 	deckAdded: string[];
-	deckRemoved: string[];
 	color: CardColor;
 	effects: CardEffect[];
 	currentPlayer: string;
+	lastPlayer: string;
+	reshuffle: string[];
 }
