@@ -206,8 +206,14 @@ export default class AppController {
 			this.groupBroadCast(data.id, 'game-new-turn', diff)
 		} else {
 			const initialState: RoundInitialState = game.controller.initNewRound()
-			this.groupBroadCast(data.id, 'game-round-new', initialState)
-			this.log('New round initiated')
+			if (initialState) {
+				this.groupBroadCast(data.id, 'game-round-new', initialState)
+				this.log('New round initiated')
+			} else {
+				// TODO poslat poradie
+				this.groupBroadCast(data.id, 'game-finish')
+				this.log('Game finished')
+			}
 		}
 		this.log(game.controller.cardStats)
 	}

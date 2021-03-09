@@ -24,7 +24,9 @@ export default class GameController {
 	currentColor: CardColor = null
 	currentType: CardType = null
 	currentEffects: CardEffect[] = []
-	roundNumber = 0
+
+	roundOrder: string[][] = []
+	roundNumber = -1
 
 	constructor (players: User[]) {
 		this.playerOrder = arrayShuffle(players.map(player => player.id))
@@ -53,9 +55,23 @@ export default class GameController {
 		return 3
 	}
 
-	get roundFinished (): boolean {
+	get roundShouldFinish (): boolean {
 		const finishedCount = Object.values(this.playerCardState).filter(state => state.finished).length
 		return finishedCount === Object.values(this.playerCardState).length - 1
+	}
+
+	get playerShouldFinish (): boolean {
+		return this.currentPlayerCardState.cards.length === 0
+	}
+
+	get gameShouldFinish (): boolean {
+		const finishedCount = Object.values(this.playerCardState).reduce((acc, player) => {
+			if (player.startCardCount === 0) {
+				acc++
+			}
+			return acc
+		}, 0)
+		return finishedCount === this.playerOrder.length - 1
 	}
 
 	get looser (): CardStateItem {
@@ -67,12 +83,14 @@ export default class GameController {
 		const deck = this.cardDeck.length
 		const players = Object.values(this.playerCardState).reduce((acc, state) => acc += state.cards.length, 0)
 		const effects = '[' + this.currentEffects.join(',') + ']'
-		return `Stack: ${stack} | Deck: ${deck} | Players: ${players} | Effects: ${effects}`
+		const orderLog = '<br>' + this.roundOrder.map(o => o.join(' - ')).join('<br>')
+		return `${this.roundNumber + 1} | Stack: ${stack} | Deck: ${deck} | Players: ${players} | Effects: ${effects}${orderLog}`
 	}
 
 	initPlayerCardState (): void {
 		for (const playerId of this.playerOrder) {
 			this.playerCardState[playerId] = {
+				id: playerId,
 				startCardCount: 5,
 				finished: false,
 				cards: []
@@ -98,7 +116,12 @@ export default class GameController {
 	}
 
 	initNewRound (): RoundInitialState {
+		if (this.gameShouldFinish) {
+			return null
+		}
+
 		this.roundNumber++
+		this.roundOrder.push([])
 		this.cardStack = arrayShuffle(Object.keys(this.cardMap))
 		this.cardDeck = []
 		this.resetPlayerCardState()
@@ -113,7 +136,7 @@ export default class GameController {
 			cardAssignment: {} as any,
 			playerOrder: this.playerOrder,
 			effects: this.currentEffects,
-			roundNumber: this.roundNumber
+			roundNumber: (this.roundNumber + 1)
 		}
 		for (const playerId in this.playerCardState) {
 			state.cardAssignment[playerId] = this.playerCardState[playerId].cards
@@ -121,7 +144,7 @@ export default class GameController {
 		return state
 	}
 
-	shiftPlayer (): void {
+	shiftPlayer (): string {
 		this.currentPlayer++
 		if (this.currentPlayer === this.playerOrder.length) {
 			this.currentPlayer = 0
@@ -129,8 +152,9 @@ export default class GameController {
 		if (this.playerCardState[this.playerOrder[this.currentPlayer]].finished) {
 			// TODO hrozi nekonecne zacyklenie, osetrit!
 			// uz by nemalo nastat funkcia sa nezavola ked bude len jeden neskonceny hrac
-			this.shiftPlayer()
+			return this.shiftPlayer()
 		}
+		return this.playerOrder[this.currentPlayer]
 	}
 
 	reshuffleCards(): string[] {
@@ -142,7 +166,18 @@ export default class GameController {
 		return cards
 	}
 
-	commitTurn (payload: CommittedTurn) {
+	finishWinner (): void {
+		this.currentPlayerCardState.finished = true
+		this.roundOrder[this.roundNumber].push(this.currentPlayerId)
+	}
+
+	finishLooser (): void {
+		this.roundOrder[this.roundNumber].push(this.looser.id)
+		this.looser.startCardCount = (this.looser.startCardCount > 0) ? this.looser.startCardCount - 1 : 0
+		this.looser.finished = true
+	}
+
+	commitTurn (payload: CommittedTurn): TurnDiff {
 		// TODO check turn validity
 
 		this.cardStack = this.cardStack.filter(id => !payload.cardsTaken.includes(id))
@@ -150,14 +185,13 @@ export default class GameController {
 
 		this.currentPlayerCardState.cards = this.currentPlayerCardState.cards.filter(id => !payload.cardsGiven.includes(id))
 		this.currentPlayerCardState.cards.push(...payload.cardsTaken)
-		if (this.currentPlayerCardState.cards.length === 0) {
-			this.currentPlayerCardState.finished = true
-		}
-		console.log(this.currentPlayerCardState, this.roundFinished)
 
-		if (this.roundFinished) {
-			// TODO zabezpecit aby to nekleslo pod nulu
-			this.looser.startCardCount -= 1
+		if (this.playerShouldFinish) {
+			this.finishWinner()
+		}
+
+		if (this.roundShouldFinish) {
+			this.finishLooser()
 			return null
 		}
 
@@ -172,6 +206,7 @@ export default class GameController {
 		}
 
 		let shuffledCards: string[] = []
+		// TODO sposobuje bugy, opravit
 		if (this.cardStack.length < this.minStackCount) {
 			while ((this.cardStack.length + this.cardDeck.length + 1) < this.minStackCount && this.currentEffects.length) {
 				this.currentEffects.pop()
@@ -180,10 +215,9 @@ export default class GameController {
 		}
 
 		const lastPlayerId = this.currentPlayerId
-		this.shiftPlayer()
-		const currentPlayerId = this.currentPlayerId
+		const currentPlayerId = this.shiftPlayer()
 
-		const diff: TurnDiff = {
+		return {
 			stackRemoved: payload.cardsTaken,
 			deckAdded: payload.cardsGiven,
 			effects: this.currentEffects,
@@ -192,7 +226,5 @@ export default class GameController {
 			lastPlayer: lastPlayerId,
 			reshuffle: shuffledCards
 		}
-
-		return diff
 	}
 }

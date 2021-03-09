@@ -78,7 +78,7 @@
 		</div>
 		<button id="fl-btn">Full Screen</button>
 	</div>
-	<script src="http://192.168.0.101:3000/socket.io/socket.io.js"></script>
+	<script src="/socket.io/socket.io.js"></script>
 <script>
 	(function () {
 
@@ -87,7 +87,7 @@
 			return
 		}
 
-		const socket = io('http://192.168.0.101:3000', { autoConnect: false })
+		const socket = io('/', { autoConnect: false })
 		socket.auth = { username: loggerName, type: 'logger' }
 		socket.connect()
 

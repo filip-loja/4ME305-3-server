@@ -40,6 +40,7 @@ export interface CardMap {
 }
 
 export interface CardStateItem {
+	id: string;
 	startCardCount: number;
 	cards: string[];
 	finished: boolean;
