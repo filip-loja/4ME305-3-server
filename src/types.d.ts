@@ -41,6 +41,7 @@ export interface CardMap {
 
 export interface CardStateItem {
 	id: string;
+	name?: string;
 	startCardCount: number;
 	cards: string[];
 	finished: boolean;

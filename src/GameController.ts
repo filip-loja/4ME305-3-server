@@ -12,23 +12,28 @@ import {
 	TurnDiff,
 	User
 } from './types'
+import PlayerState from './PlayerState'
 
 export default class GameController {
 
+	players: PlayerState
+
 	cardMap: CardMap = cards
-	playerOrder: string[] = null
-	playerCardState: CardState = {}
 	cardStack: string[] = []
 	cardDeck: string[] = []
-	currentPlayer: number = 0
 	currentColor: CardColor = null
 	currentType: CardType = null
 	currentEffects: CardEffect[] = []
+
+	currentPlayer: number = 0
+	playerOrder: string[] = null
+	playerCardState: CardState = {}
 
 	roundOrder: string[][] = []
 	roundNumber = -1
 
 	constructor (players: User[]) {
+		this.players = new PlayerState()
 		this.playerOrder = arrayShuffle(players.map(player => player.id))
 		this.initPlayerCardState()
 	}
@@ -89,12 +94,14 @@ export default class GameController {
 
 	initPlayerCardState (): void {
 		for (const playerId of this.playerOrder) {
-			this.playerCardState[playerId] = {
+			const obj = {
 				id: playerId,
 				startCardCount: 5,
 				finished: false,
-				cards: []
+				cards: [] as any
 			}
+			this.playerCardState[playerId] = obj
+			this.players.add(obj)
 		}
 	}
 
