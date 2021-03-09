@@ -44,7 +44,7 @@ export interface CardStateItem {
 	name?: string;
 	startCardCount: number;
 	cards: string[];
-	finished: boolean;
+	finished?: boolean;
 }
 
 export interface CardState {

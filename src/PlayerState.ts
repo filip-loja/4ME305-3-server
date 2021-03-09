@@ -4,27 +4,75 @@ import {CardStateItem} from './types'
 import ObservableSlim from 'observable-slim'
 
 type PlayerIdentifier = string | number
+interface Change {
+	type: string;
+	property: string;
+	previousValue: any;
+	newValue: any;
+	proxy: any;
+	target: any;
+	currentPath: string;
+	jsonPath: string;
+}
 
 export default class PlayerState {
 	list: CardStateItem[]
-	playerMap: Map<string, number>
+	playerMap: Record<string, number>
+	ids: string[]
 	roundFinished: Set<string>
 	gameFinished: Set<string>
+	// TODO asi tiez implementovat ako Set
+	activeInRound: string[]
+	activeInGame: string[]
 
 	constructor () {
-		this.playerMap = new Map<string, number>()
 		this.roundFinished = new Set<string>()
 		this.gameFinished = new Set<string>()
+		this.activeInRound = []
+		this.activeInGame = []
 
-		this.list = ObservableSlim.create([], false, (changes: any) => {
-			console.log(JSON.stringify(changes));
-		});
+		this.playerMap = ObservableSlim.create({}, false, () => {
+			this.ids = Object.keys(this.playerMap)
+		})
+
+		this.list = ObservableSlim.create([], false, (changes: Change[]) => {
+			const change = changes[0]
+
+			if (change.type === 'add') {
+				this.playerMap[change.newValue.id] = Number(change.property)
+				this.activeInRound = this.ids.filter(id => !this.roundFinished.has(id))
+				this.activeInGame = this.ids.filter(id => !this.gameFinished.has(id))
+			}
+
+			if (change.type === 'update' && change.property === 'cards') {
+				if (change.newValue.length === 0) {
+					this.roundFinished.add(change.target.id)
+				} else {
+					this.roundFinished.delete(change.target.id)
+				}
+				this.activeInRound = this.ids.filter(id => !this.roundFinished.has(id))
+			}
+
+			if (change.type === 'update' && change.property === 'startCardCount') {
+				if (change.newValue === 0) {
+					this.gameFinished.add(change.target.id)
+				} else {
+					this.gameFinished.delete(change.target.id)
+				}
+				this.activeInGame = this.ids.filter(id => !this.gameFinished.has(id))
+			}
+		})
+	}
+
+	get looser (): CardStateItem {
+		return this.get(this.activeInRound[0])
 	}
 
 	add (newPlayer: CardStateItem): void {
 		this.list.push(newPlayer)
 	}
 
+	// TODO remove observer
 	remove (identifier: PlayerIdentifier): boolean {
 		const index = this._getPlayerIndex(identifier)
 		if (index === undefined) return false
@@ -37,6 +85,15 @@ export default class PlayerState {
 		return this.list[index]
 	}
 
+	isInactive (id: string): boolean {
+		return this.roundFinished.has(id) || this.gameFinished.has(id)
+	}
+
+	destroy () {
+		ObservableSlim.remove(this.list)
+		ObservableSlim.remove(this.playerMap)
+	}
+
 	_getPlayerIndex (identifier: PlayerIdentifier): number {
 		if (typeof identifier === 'number') {
 			if (identifier >= 0 && identifier < this.list.length) {
@@ -44,6 +101,6 @@ export default class PlayerState {
 			}
 			return undefined
 		}
-		return this.playerMap.get(identifier)
+		return this.playerMap[identifier]
 	}
 }

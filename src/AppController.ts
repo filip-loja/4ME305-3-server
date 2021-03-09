@@ -188,7 +188,6 @@ export default class AppController {
 
 		const game = this.gameMap.get(gameId)
 		game.controller = new GameController(game.players)
-		// const initialState: GameInitialState = game.controller.getInitialState()
 		const initialState: RoundInitialState = game.controller.initNewRound()
 		this.groupBroadCast(gameId, 'game-round-new', initialState)
 		this.log(`Game (${gameId}) started by ${this.userSignatureStr}. Initial state generated and sent to all players.`)
