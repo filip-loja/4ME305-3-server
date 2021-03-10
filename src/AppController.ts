@@ -64,7 +64,7 @@ export default class AppController {
 			clients: [...this.userMap.values()],
 			games: [...this.gameMap.values()]
 		}
-		this.groupBroadCast(LOGGER_CHANNEL, 'log', payload)
+		this.groupBroadcast(LOGGER_CHANNEL, 'log', payload)
 		// console.log(...messages)
 	}
 
@@ -179,7 +179,7 @@ export default class AppController {
 		}
 	}
 
-	groupBroadCast (groupId: string, event: string, payload: any = null): void {
+	groupBroadcast (groupId: string, event: string, payload: any = null): void {
 		this.io.to(groupId).emit(event, payload)
 	}
 
@@ -189,32 +189,36 @@ export default class AppController {
 		const game = this.gameMap.get(gameId)
 		game.controller = new GameController(game.players)
 		const initialState: RoundInitialState = game.controller.initNewRound()
-		this.groupBroadCast(gameId, 'game-round-new', initialState)
+		this.groupBroadcast(gameId, 'game-round-new', initialState)
 		this.log(`Game (${gameId}) started by ${this.userSignatureStr}. Initial state generated and sent to all players.`)
 	}
 
-	commitTurn (data: { id: string; payload: CommittedTurn }): void {
+	commitTurn (data: { id: string; payload: CommittedTurn }) {
 		// TODO nejaky check prav a ci tam naozaj je
 
 		const RESP = 'game-turn-commit-resp'
 		const game = this.gameMap.get(data.id)
-		const diff = game.controller.commitTurn(data.payload)
+
+		const stateChange = game.controller.commitTurn(data.payload)
 		const resp = { success: true }
 		this.socket.emit(RESP, resp)
-		if (diff) {
-			this.groupBroadCast(data.id, 'game-new-turn', diff)
-		} else {
-			const initialState: RoundInitialState = game.controller.initNewRound()
-			if (initialState) {
-				this.groupBroadCast(data.id, 'game-round-new', initialState)
-				this.log('New round initiated')
-			} else {
-				// TODO poslat poradie
-				this.groupBroadCast(data.id, 'game-finish')
-				this.log('Game finished')
-			}
+
+		if (stateChange) {
+			this.log(game.controller.cardStats)
+			return this.groupBroadcast(data.id, 'game-new-turn', stateChange)
 		}
-		this.log(game.controller.cardStats)
+
+		const roundInitialState: RoundInitialState = game.controller.initNewRound()
+		if (roundInitialState) {
+			this.log('New round initiated')
+			this.log(game.controller.cardStats)
+			return this.groupBroadcast(data.id, 'game-round-new', roundInitialState)
+		}
+
+		const report = game.controller.results
+		this.groupBroadcast(data.id, 'game-finish', report)
+		this.log('Game finished')
+		console.log(report)
 	}
 
 }

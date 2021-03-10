@@ -81,3 +81,17 @@ export interface TurnDiff {
 	lastPlayer: string;
 	reshuffle: string[];
 }
+
+export interface GameReport {
+	time: number;
+	rounds: number;
+	players: {
+		[key: string]: GameReportScore;
+	}
+}
+
+export interface GameReportScore {
+	id: string;
+	name: string;
+	score: number;
+}

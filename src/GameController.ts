@@ -7,7 +7,7 @@ import {
 	CardState,
 	CardStateItem,
 	CardType,
-	CommittedTurn,
+	CommittedTurn, GameReport,
 	RoundInitialState,
 	TurnDiff,
 	User
@@ -30,7 +30,11 @@ export default class GameController {
 	currentPlayerIndex: number = 0
 	initialPlayerOrder: string[]
 
+	timeStart: number
+	timeEnd: number
+
 	constructor (players: User[]) {
+		this.timeStart = Date.now()
 		this.initPlayerState(players)
 		this.initialPlayerOrder = arrayShuffle(this.players.ids)
 	}
@@ -78,8 +82,29 @@ export default class GameController {
 		const deck = this.cardDeck.length
 		const players = 32 - stack - deck
 		const effects = '[' + this.currentEffects.join(',') + ']'
-		const orderLog = '<br>' + this.gameScoreOrder.map(o => o.join(' - ')).join('<br>')
+		const orderLog = '<br>' + this.gameScoreOrder.map(o => o.map(id => this.players.get(id).name).join(' - ')).join('<br>')
 		return `${this.currentRoundNumber + 1} | Stack: ${stack} | Deck: ${deck} | Players: ${players} | Effects: ${effects}${orderLog}`
+	}
+
+	get results (): GameReport {
+		const report = {
+			time: this.timeEnd - this.timeStart,
+			rounds: this.currentRoundNumber,
+			players: {} as any
+		}
+		for (const player of this.players.list) {
+			report.players[player.id] = {
+				id: player.id,
+				name: player.name,
+				score: 0
+			}
+		}
+		for (const roundScore of this.gameScoreOrder) {
+			for (let i = 0; i < roundScore.length; i++) {
+				report.players[roundScore[i]].score += (roundScore.length - i)
+			}
+		}
+		return report
 	}
 
 	initPlayerState (players: User[]): void {
@@ -114,6 +139,7 @@ export default class GameController {
 
 	initNewRound (): RoundInitialState {
 		if (this.gameShouldFinish) {
+			this.timeEnd = Date.now()
 			return null
 		}
 
@@ -151,13 +177,19 @@ export default class GameController {
 		return this.currentPlayerId
 	}
 
-	reshuffleCards(): string[] {
+	reshuffleCards (): string[] {
 		let cards = this.cardDeck.slice()
 		const upperCard = cards.pop()
 		this.cardDeck = [ upperCard ]
 		cards = arrayShuffle(cards)
 		this.cardStack.push(...cards)
 		return cards
+	}
+
+	scoreLooser (): void {
+		this.gameScoreOrder[this.currentRoundNumber].push(this.players.looser.id)
+		this.gameScoreOrder[this.currentRoundNumber].push(...this.players.gameFinished.values())
+		this.players.looser.startCardCount = (this.players.looser.startCardCount > 0) ? this.players.looser.startCardCount - 1 : 0
 	}
 
 	commitTurn (payload: CommittedTurn): TurnDiff {
@@ -174,8 +206,7 @@ export default class GameController {
 		}
 
 		if (this.roundShouldFinish) {
-			this.gameScoreOrder[this.currentRoundNumber].push(this.players.looser.id)
-			this.players.looser.startCardCount = (this.players.looser.startCardCount > 0) ? this.players.looser.startCardCount - 1 : 0
+			this.scoreLooser()
 			return null
 		}
 
@@ -184,9 +215,11 @@ export default class GameController {
 			this.currentColor = payload.newColor
 		}
 
-		/** Only N - 1 "Ace" effects can be active; N = number of players */
-		if (this.pendingEffect === 'ace' && this.currentEffects.length >= this.currentPlayerOrder.length) {
-			this.currentEffects.pop()
+		/** Only N - 1 "Ace" effects can be active; N = number of active players */
+		if (this.pendingEffect === 'ace') {
+			while (this.currentEffects.length >= this.players.activeInRound.length) {
+				this.currentEffects.pop()
+			}
 		}
 
 		let shuffledCards: string[] = []
