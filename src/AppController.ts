@@ -64,13 +64,8 @@ export default class AppController {
 			clients: [...this.userMap.values()],
 			games: [...this.gameMap.values()]
 		}
-		this.groupBroadcast(LOGGER_CHANNEL, 'log', payload)
+		this._groupBroadcast(LOGGER_CHANNEL, 'log', payload)
 		// console.log(...messages)
-	}
-
-	resetClients (gameId: string, reason: string): void {
-		this.log(`Sending "reset" signal to all clients in ${gameId}`)
-		this.io.to(gameId).emit('reset', reason)
 	}
 
 	renameClient (newUsername: string): void {
@@ -79,8 +74,21 @@ export default class AppController {
 		this.log(`Client name changed to ${newUsername} (${this.user.id})`)
 	}
 
-	createGame (): void {
-		const gameId = generateGameId()
+	createGame (requestedId: string = null) {
+		const RESP = 'game-create-resp'
+		let gameId
+
+		if (requestedId) {
+			if ([...this.gameMap.keys()].includes(requestedId)) {
+				this.log(`User (${this.user.id}) attempted to create a new game with existing ID (${requestedId})`)
+				return this.socket.emit(RESP,{ success: false, message: 'id_already_used' })
+			} else {
+				gameId = requestedId
+			}
+		} else {
+			gameId = generateGameId()
+		}
+
 		this.user.activeGame = gameId
 		const game: Game = {
 			id: gameId,
@@ -90,9 +98,9 @@ export default class AppController {
 		}
 		this.gameMap.set(gameId, game)
 		this.socket.join(gameId)
-		this.socket.emit('game-create-resp', gameId)
-		this.io.to(gameId).emit('game-player-added', this.userSignature)
-		this.log(`New game created by ${this.user.name}:  ${gameId}`)
+		this.socket.emit(RESP,{ success: true, id: gameId })
+		this._groupBroadcast(gameId, 'game-player-added', this.userSignature)
+		this.log(`New game created by ${this.user.name}: ${gameId}`)
 	}
 
 	joinGame (gameId: string): any {
@@ -113,6 +121,7 @@ export default class AppController {
 			this.log(`Game session full (${gameId}); ${this.userSignatureStr})`)
 			return this.socket.emit(RESP, resp)
 		}
+
 		game.players.push(this.user)
 		this.user.activeGame = gameId
 		const resp = {
@@ -156,12 +165,6 @@ export default class AppController {
 		return game.createdBy === client.id
 	}
 
-	removeGame (gameId: string): void {
-		this.gameMap.delete(gameId)
-		this.resetClients(gameId, 'game_creator_disconnected')
-		this.log(`Game ${gameId} was deleted and all its clients were disconnected`)
-	}
-
 	disconnectClient (reason: string): void {
 		const game = this.user.activeGame && this.gameMap.get(this.user.activeGame)
 		let isCreator, gameId
@@ -179,7 +182,7 @@ export default class AppController {
 		}
 	}
 
-	groupBroadcast (groupId: string, event: string, payload: any = null): void {
+	_groupBroadcast (groupId: string, event: string, payload: any = null): void {
 		this.io.to(groupId).emit(event, payload)
 	}
 
@@ -189,12 +192,13 @@ export default class AppController {
 		const game = this.gameMap.get(gameId)
 		game.controller = new GameController(game.players)
 		const initialState: RoundInitialState = game.controller.initNewRound()
-		this.groupBroadcast(gameId, 'game-round-new', initialState)
+		this._groupBroadcast(gameId, 'game-round-new', initialState)
 		this.log(`Game (${gameId}) started by ${this.userSignatureStr}. Initial state generated and sent to all players.`)
 	}
 
 	commitTurn (data: { id: string; payload: CommittedTurn }) {
 		// TODO nejaky check prav a ci tam naozaj je
+		// aj je krok nevalidny tak success false
 
 		const RESP = 'game-turn-commit-resp'
 		const game = this.gameMap.get(data.id)
@@ -205,20 +209,54 @@ export default class AppController {
 
 		if (stateChange) {
 			this.log(game.controller.cardStats)
-			return this.groupBroadcast(data.id, 'game-new-turn', stateChange)
+			return this._groupBroadcast(data.id, 'game-new-turn', stateChange)
 		}
 
 		const roundInitialState: RoundInitialState = game.controller.initNewRound()
 		if (roundInitialState) {
-			this.log('New round initiated')
+			this.log(`New round initiated (${game.id})`)
 			this.log(game.controller.cardStats)
-			return this.groupBroadcast(data.id, 'game-round-new', roundInitialState)
+			return this._groupBroadcast(data.id, 'game-round-new', roundInitialState)
 		}
 
-		const report = game.controller.results
-		this.groupBroadcast(data.id, 'game-finish', report)
-		this.log('Game finished')
-		console.log(report)
+		this._finishGame(game)
 	}
 
+	_finishGame (game: Game): void {
+		// shows all rooms
+		// console.log(this.io.sockets.adapter.rooms)
+
+		const report = game.controller.results
+		this._groupBroadcast(game.id, 'game-finish', report)
+		this.log(`Game (${game.id}) finished and results sent to all players`)
+
+		this._removePlayers(game)
+		this._removeGame(game)
+	}
+
+	_removePlayers (game: Game): void {
+		const playerIds = game.controller.players.ids
+		for (const playerId of playerIds) {
+			this.io.sockets.sockets.get(playerId).leave(game.id)
+			this.userMap.get(playerId).activeGame = null
+		}
+		this.log(`All players removed from game (${game.id})`)
+	}
+
+	_removeGame (game: Game): void {
+		game.controller.removeObservers()
+		this.gameMap.delete(game.id)
+		this.log(`Game was deleted (${game.id})`)
+	}
+
+	resetClients (gameId: string, reason: string): void {
+		this.log(`Sending "reset" signal to all clients in ${gameId}`)
+		this.io.to(gameId).emit('reset', reason)
+	}
+
+	removeGame (gameId: string): void {
+		this.gameMap.delete(gameId)
+		this.resetClients(gameId, 'game_creator_disconnected')
+		this.log(`Game ${gameId} was deleted and all its clients were disconnected`)
+	}
 }

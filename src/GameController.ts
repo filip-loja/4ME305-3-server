@@ -1,10 +1,9 @@
 
 import arrayShuffle from 'array-shuffle'
-import cards from './cards'
+import cards, { fakeOrder } from './cards'
 import {
 	CardColor, CardEffect,
 	CardMap,
-	CardState,
 	CardStateItem,
 	CardType,
 	CommittedTurn, GameReport,
@@ -101,7 +100,7 @@ export default class GameController {
 		}
 		for (const roundScore of this.gameScoreOrder) {
 			for (let i = 0; i < roundScore.length; i++) {
-				report.players[roundScore[i]].score += (roundScore.length - i)
+				report.players[roundScore[i]].score += (roundScore.length - i - 1)
 			}
 		}
 		return report
@@ -113,7 +112,7 @@ export default class GameController {
 			this.players.add({
 				id: player.id,
 				name: player.name,
-				startCardCount: 5,
+				startCardCount: 2,
 				cards: []
 			})
 		}
@@ -126,7 +125,8 @@ export default class GameController {
 	}
 
 	assignCards (): void {
-		this.cardStack = arrayShuffle(Object.keys(this.cardMap))
+		// this.cardStack = arrayShuffle(Object.keys(this.cardMap))
+		this.cardStack = [...fakeOrder]
 		this.cardDeck = []
 		for (const player of this.players.list) {
 			player.cards = this.cardStack.splice(0, player.startCardCount)
@@ -243,5 +243,9 @@ export default class GameController {
 			lastPlayer: lastPlayerId,
 			reshuffle: shuffledCards
 		}
+	}
+
+	removeObservers (): void {
+		this.players.destroy()
 	}
 }
