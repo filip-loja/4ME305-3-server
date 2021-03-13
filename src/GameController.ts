@@ -153,9 +153,10 @@ export default class GameController {
 		}
 
 		this.players.remove(playerId)
-		this.initialPlayerOrder = this.initialPlayerOrder.filter(id => id !== playerId)
 
 		if (this.started) {
+			this.initialPlayerOrder = this.initialPlayerOrder.filter(id => id !== playerId)
+
 			if (this.currentPlayerIndex >= this.players.list.length) {
 				this.currentPlayerIndex = 0
 			}
