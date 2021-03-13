@@ -122,7 +122,7 @@ export default class GameController {
 			this.players.add({
 				id: player.id,
 				name: player.name,
-				startCardCount: 2,
+				startCardCount: 5,
 				cards: []
 			})
 		}
@@ -172,8 +172,8 @@ export default class GameController {
 	}
 
 	assignCards (): void {
-		// this.cardStack = arrayShuffle(Object.keys(this.cardMap))
-		this.cardStack = [...fakeOrder]
+		this.cardStack = arrayShuffle(Object.keys(this.cardMap))
+		// this.cardStack = [...fakeOrder]
 		this.cardDeck = []
 		for (const player of this.players.list) {
 			player.cards = this.cardStack.splice(0, player.startCardCount)
