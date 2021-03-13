@@ -1,6 +1,7 @@
-import { AppSocket, AppStorage, CommittedTurn, Game, RoundInitialState, User } from './types'
+import {AppSocket, AppStorage, CommittedTurn, Game, NewGamePayload, RoundInitialState, User} from './types'
 import { Server } from 'socket.io'
 import GameController from './GameController'
+import geocode from './geocode'
 
 const LOGGER_CHANNEL = 'logger_channel'
 const generateGameId = (): string => (String(Date.now()))
@@ -55,6 +56,7 @@ export default class AppController {
 			name: name,
 			type: this.socket.type,
 			activeGame: null,
+			address: null,
 			// socket: this.socket
 		}
 		if (currentClient.type === 'logger') {
@@ -97,60 +99,62 @@ export default class AppController {
 		this.log(`Connection terminated with ${this.mySignatureStr}: ${reason}`)
 	}
 
-	createGame (requestedId: string = null) {
+	async createGame (payload: NewGamePayload) {
 		const RESP = 'game-create-resp'
 		let gameId
 
-		if (requestedId) {
-			if ([...this.gameMap.keys()].includes(requestedId)) {
-				this.log(`User (${this.me.id}) attempted to create a new game with existing ID (${requestedId})`)
+		if (payload.id) {
+			if ([...this.gameMap.keys()].includes(payload.id)) {
+				this.log(`User (${this.me.id}) attempted to create a new game with existing ID (${payload.id})`)
 				return this.socket.emit(RESP,{ success: false, message: 'id_already_used' })
 			} else {
-				gameId = requestedId
+				gameId = payload.id
 			}
 		} else {
 			gameId = generateGameId()
 		}
 
+		this.me.address = await geocode(payload.geo)
 		const game = new GameController(gameId, this.me.id)
 		game.addPlayer(this.me)
 		this.me.activeGame = gameId
 		this.gameMap.set(gameId, game)
 		this.socket.join(gameId)
 		this.socket.emit(RESP,{ success: true, id: gameId })
-		this._groupBroadcast(gameId, 'game-player-added', this.mySignature)
+		this._groupBroadcast(gameId, 'game-player-added', { ...this.mySignature, address: this.me.address })
 		this.log(`New game created by ${this.mySignatureStr} => ${gameId}`)
 	}
 
-	joinGame (gameId: string): any {
+	async joinGame (payload: NewGamePayload) {
 		const RESP = 'game-join-resp'
-		const game = this.gameMap.get(gameId)
+		const game = this.gameMap.get(payload.id)
 		if (!game || game.started) {
 			const resp = { success: false, message: 'game_not_found' }
-			this.log(`Game (${gameId}) not found; ${this.mySignatureStr})`)
+			this.log(`Game (${payload.id}) not found; ${this.mySignatureStr})`)
 			return this.socket.emit(RESP, resp)
 		}
-		if (gameId === this.me.activeGame) {
+		if (payload.id === this.me.activeGame) {
 			const resp = { success: false, message: 'game_already_in' }
-			this.log(`Player already in game (${gameId}); ${this.mySignatureStr})`)
+			this.log(`Player already in game (${payload.id}); ${this.mySignatureStr})`)
 			return this.socket.emit(RESP, resp)
 		}
 		if (game.players.list.length >= this.playerLimit) {
 			const resp = { success: false, message: 'game_session_full' }
-			this.log(`Game session full (${gameId}); ${this.mySignatureStr})`)
+			this.log(`Game session full (${payload.id}); ${this.mySignatureStr})`)
 			return this.socket.emit(RESP, resp)
 		}
 
+		this.me.address = await geocode(payload.geo)
 		game.addPlayer(this.me)
-		this.me.activeGame = gameId
+		this.me.activeGame = payload.id
 		const resp = {
 			success: true,
-			players: game.players.list.map(player => ({ id: player.id, name: player.name }))
+			players: game.players.list.map(player => ({ id: player.id, name: player.name, address: player.address }))
 		}
-		this.socket.join(gameId)
+		this.socket.join(payload.id)
 		this.socket.emit(RESP, resp)
-		this.socket.to(gameId).emit('game-player-added', this.mySignature)
-		this.log(`Player ${this.mySignatureStr} joined game (${gameId}) `)
+		this.socket.to(payload.id).emit('game-player-added', { ...this.mySignature, address: this.me.address })
+		this.log(`Player ${this.mySignatureStr} joined game (${payload.id}) `)
 	}
 
 	leaveGame (gameId: string): any {

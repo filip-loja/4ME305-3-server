@@ -123,6 +123,7 @@ export default class GameController {
 				id: player.id,
 				name: player.name,
 				startCardCount: 5,
+				address: player.address,
 				cards: []
 			})
 		}

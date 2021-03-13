@@ -21,6 +21,7 @@ export interface User {
 	name: string;
 	type: UserType;
 	activeGame: string;
+	address: string;
 }
 
 export interface Game {
@@ -42,6 +43,7 @@ export interface CardMap {
 export interface CardStateItem {
 	id: string;
 	name?: string;
+	address: string;
 	startCardCount: number;
 	cards: string[];
 	finished?: boolean;
@@ -100,4 +102,14 @@ export interface RemovePlayerDiff {
 	id: string;
 	currentPlayer?: string;
 	stackAdded?: string[]
+}
+
+export interface NewGamePayload {
+	id: string;
+	geo: Geo;
+}
+
+export interface Geo {
+	lat: number;
+	lon: number;
 }
