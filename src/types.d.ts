@@ -13,7 +13,7 @@ export interface AppSocket extends Socket {
 
 export interface AppStorage {
 	users: Map<string, User>,
-	games: Map<string, Game>
+	games: Map<string, GameController>
 }
 
 export interface User {
@@ -94,4 +94,10 @@ export interface GameReportScore {
 	id: string;
 	name: string;
 	score: number;
+}
+
+export interface RemovePlayerDiff {
+	id: string;
+	currentPlayer?: string;
+	stackAdded?: string[]
 }

@@ -1,5 +1,6 @@
 import { AppSocket, AppStorage, Game, User } from './types'
 import AppController from './AppController'
+import GameController from './GameController'
 
 const fs = require('fs').promises
 const path = require('path')
@@ -20,7 +21,7 @@ httpServer.listen(3000, () => {
 
 const appStorage: AppStorage = {
 	users: new Map<string, User>(),
-	games: new Map<string, Game>(),
+	games: new Map<string, GameController>(),
 }
 
 const io = require('socket.io')(httpServer, {

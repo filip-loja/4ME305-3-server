@@ -6,7 +6,7 @@ import {
 	CardMap,
 	CardStateItem,
 	CardType,
-	CommittedTurn, GameReport,
+	CommittedTurn, GameReport, RemovePlayerDiff,
 	RoundInitialState,
 	TurnDiff,
 	User
@@ -14,6 +14,10 @@ import {
 import PlayerState from './PlayerState'
 
 export default class GameController {
+
+	id: string;
+	createdBy: string
+	started: boolean
 
 	players: PlayerState
 
@@ -32,10 +36,11 @@ export default class GameController {
 	timeStart: number
 	timeEnd: number
 
-	constructor (players: User[]) {
-		this.timeStart = Date.now()
-		this.initPlayerState(players)
-		this.initialPlayerOrder = arrayShuffle(this.players.ids)
+	constructor (id: string, createdBy: string) {
+		this.id = id
+		this.players = new PlayerState()
+		this.createdBy = createdBy
+		this.started = false
 	}
 
 	get currentPlayerOrder (): string[] {
@@ -106,9 +111,14 @@ export default class GameController {
 		return report
 	}
 
-	initPlayerState (players: User[]): void {
-		this.players = new PlayerState()
-		for (const player of players) {
+	start (): void {
+		this.started = true
+		this.timeStart = Date.now()
+		this.initialPlayerOrder = arrayShuffle(this.players.ids)
+	}
+
+	addPlayer (player: User): void {
+		if (!this.started) {
 			this.players.add({
 				id: player.id,
 				name: player.name,
@@ -116,6 +126,43 @@ export default class GameController {
 				cards: []
 			})
 		}
+	}
+
+	removePlayer (playerId: string): RemovePlayerDiff {
+		const player = this.players.get(playerId)
+		if (!player) {
+			return null
+		}
+
+		const resp = {
+			id: playerId
+		} as any
+
+		if (this.started) {
+			for (const round of this.gameScoreOrder) {
+				for (let i = 0; i < round.length; i++) {
+					if (round[i] === playerId) {
+						round.splice(i, 1)
+						break
+					}
+				}
+			}
+
+			this.cardStack.push(...player.cards)
+			resp['stackAdded'] = [...player.cards]
+		}
+
+		this.players.remove(playerId)
+		this.initialPlayerOrder = this.initialPlayerOrder.filter(id => id !== playerId)
+
+		if (this.started) {
+			if (this.currentPlayerIndex >= this.players.list.length) {
+				this.currentPlayerIndex = 0
+			}
+			resp['currentPlayer'] = this.currentPlayerOrder[this.currentPlayerIndex]
+		}
+
+		return resp
 	}
 
 	removePlayersCards (): void {

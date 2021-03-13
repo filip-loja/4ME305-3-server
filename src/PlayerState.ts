@@ -24,6 +24,7 @@ export default class PlayerState {
 	// TODO asi tiez implementovat ako Set
 	activeInRound: string[]
 	activeInGame: string[]
+	lastDeletedId: string
 
 	constructor () {
 		this.roundFinished = new Set<string>()
@@ -32,7 +33,7 @@ export default class PlayerState {
 		this.activeInGame = []
 
 		this.playerMap = ObservableSlim.create({}, false, () => {
-			this.ids = Object.keys(this.playerMap)
+			this.ids = Object.keys(this.playerMap).filter(id => this.playerMap[id] !== undefined)
 		})
 
 		this.list = ObservableSlim.create([], false, (changes: Change[]) => {
@@ -40,6 +41,20 @@ export default class PlayerState {
 
 			if (change.type === 'add') {
 				this.playerMap[change.newValue.id] = Number(change.property)
+				this.activeInRound = this.ids.filter(id => !this.roundFinished.has(id))
+				this.activeInGame = this.ids.filter(id => !this.gameFinished.has(id))
+			}
+
+			if (change.type === 'delete') {
+				this.playerMap[this.lastDeletedId] = undefined
+				this.lastDeletedId = null
+				for (let i = 0; i < change.target.length; i++) {
+					if (change.target[i]) {
+						this.playerMap[change.target[i].id] = i
+					}
+				}
+				this.roundFinished.delete(change.previousValue.id)
+				this.gameFinished.delete(change.previousValue.id)
 				this.activeInRound = this.ids.filter(id => !this.roundFinished.has(id))
 				this.activeInGame = this.ids.filter(id => !this.gameFinished.has(id))
 			}
@@ -72,11 +87,11 @@ export default class PlayerState {
 		this.list.push(newPlayer)
 	}
 
-	// TODO remove observer
 	remove (identifier: PlayerIdentifier): boolean {
 		const index = this._getPlayerIndex(identifier)
 		if (index === undefined) return false
-		this.list.splice(index, 0)
+		this.lastDeletedId = this.list[index].id
+		this.list.splice(index, 1)
 	}
 
 	get (identifier: PlayerIdentifier): CardStateItem {
