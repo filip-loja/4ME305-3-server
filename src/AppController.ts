@@ -4,7 +4,7 @@ import GameController from './GameController'
 import geocode from './geocode'
 
 const LOGGER_CHANNEL = 'logger_channel'
-const generateGameId = (): string => (String(Date.now()))
+const generateGameId = (): string => (String(Date.now()).slice(-6))
 
 export default class AppController {
 	socket: AppSocket = null
@@ -16,7 +16,6 @@ export default class AppController {
 	constructor (socket: AppSocket, io: Server, storage: AppStorage) {
 		this.socket = socket
 		this.io = io
-		// TODO prerobit
 		this.userMap = storage.users
 		this.gameMap = storage.games
 		this.init()
@@ -56,8 +55,7 @@ export default class AppController {
 			name: name,
 			type: this.socket.type,
 			activeGame: null,
-			address: null,
-			// socket: this.socket
+			address: null
 		}
 		if (currentClient.type === 'logger') {
 			this.socket.join(LOGGER_CHANNEL)
@@ -203,9 +201,6 @@ export default class AppController {
 	}
 
 	commitTurn (data: { id: string; payload: CommittedTurn }) {
-		// TODO nejaky check prav a ci tam naozaj je
-		// aj je krok nevalidny tak success false
-
 		const RESP = 'game-turn-commit-resp'
 		const game = this.gameMap.get(data.id)
 
@@ -249,7 +244,4 @@ export default class AppController {
 		}
 		this.log(`All players removed from game (${game.id})`)
 	}
-
-	// shows all rooms
-	// console.log(this.io.sockets.adapter.rooms)
 }

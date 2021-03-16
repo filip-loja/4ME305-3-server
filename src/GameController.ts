@@ -242,7 +242,6 @@ export default class GameController {
 	}
 
 	commitTurn (payload: CommittedTurn): TurnDiff {
-		// TODO check turn validity
 
 		this.cardStack = this.cardStack.filter(id => !payload.cardsTaken.includes(id))
 		this.cardDeck.push(...payload.cardsGiven)
@@ -272,7 +271,6 @@ export default class GameController {
 		}
 
 		let shuffledCards: string[] = []
-		// TODO sposobuje bugy, opravit
 		if (this.cardStack.length < this.minStackCount) {
 			while ((this.cardStack.length + this.cardDeck.length + 1) < this.minStackCount && this.currentEffects.length) {
 				this.currentEffects.pop()

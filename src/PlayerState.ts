@@ -21,7 +21,6 @@ export default class PlayerState {
 	ids: string[]
 	roundFinished: Set<string>
 	gameFinished: Set<string>
-	// TODO asi tiez implementovat ako Set
 	activeInRound: string[]
 	activeInGame: string[]
 	lastDeletedId: string
